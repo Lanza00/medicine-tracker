@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import DoseList from "@/components/DoseList";
 import PetAvatar from "@/components/PetAvatar";
 import SetupNotice from "@/components/SetupNotice";
-import { getDosesForDate, getPets, getSettings } from "@/lib/data";
+import { buildDoses, forPet, getLogs, getMedications, getPets, getSettings } from "@/lib/data";
 import { addDays, formatLong, formatTime12, isDateKey, nowParts } from "@/lib/dates";
 import { hasSupabaseEnv } from "@/lib/supabase";
 
@@ -28,9 +28,11 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   let pets, settings, doses;
   try {
-    [pets, settings] = await Promise.all([getPets(), getSettings()]);
-    const petId = pets.find((p) => p.id === sp.pet)?.id;
-    doses = await getDosesForDate(date, petId);
+    // One round of queries, all in parallel. Filtering by pet happens here instead of in a second query.
+    const [p, s, meds, logs] = await Promise.all([getPets(), getSettings(), getMedications(), getLogs(date, date)]);
+    pets = p;
+    settings = s;
+    doses = buildDoses(forPet(meds, pets.find((x) => x.id === sp.pet)?.id), logs, date);
   } catch (e) {
     return <SetupNotice message={e instanceof Error ? e.message : String(e)} />;
   }

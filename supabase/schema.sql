@@ -89,3 +89,11 @@ alter table public.dose_logs enable row level security;
 alter table public.settings enable row level security;
 alter table public.push_subscriptions enable row level security;
 alter table public.reminder_state enable row level security;
+
+-- Newer Supabase projects don't auto-grant table access to service_role.
+-- The server uses the service_role key, so grant it explicitly.
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+alter default privileges in schema public grant all on tables to service_role;
+alter default privileges in schema public grant all on sequences to service_role;
