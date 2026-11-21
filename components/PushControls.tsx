@@ -13,6 +13,34 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
+/** Some browsers (Brave especially) never settle these promises, which leaves the button stuck. */
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
+
+function sameKey(a: ArrayBuffer | null | undefined, b: Uint8Array): boolean {
+  if (!a) return false;
+  const x = new Uint8Array(a);
+  return x.length === b.length && x.every((v, i) => v === b[i]);
+}
+
+/** Turn the browser's terse push errors into something a person can act on. */
+function friendlyPushError(e: unknown): string {
+  const name = e instanceof DOMException ? e.name : "";
+  const text = e instanceof Error ? e.message : String(e);
+  const isBrave = typeof navigator !== "undefined" && "brave" in navigator;
+  if (name === "AbortError" || /push service error/i.test(text)) {
+    return isBrave
+      ? "Brave blocks push by default. Open brave://settings/privacy, turn on \"Use Google services for push messaging\", restart Brave, then try again."
+      : "The browser's push service refused the request. Make sure Google Play services are up to date (Android) or try Chrome, then try again.";
+  }
+  if (name === "NotAllowedError") return "Notifications are blocked for this site. Allow them in the site settings, then reload.";
+  return text || "Could not turn on notifications.";
+}
+
 type State = "loading" | "unsupported" | "denied" | "off" | "on";
 
 export default function PushControls({ vapidPublicKey }: { vapidPublicKey: string }) {
@@ -49,13 +77,26 @@ export default function PushControls({ vapidPublicKey }: { vapidPublicKey: strin
           setState(permission === "denied" ? "denied" : "off");
           return;
         }
-        const reg = await navigator.serviceWorker.ready;
-        const sub =
-          (await reg.pushManager.getSubscription()) ??
-          (await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-          }));
+        const key = urlBase64ToUint8Array(vapidPublicKey.trim());
+        const reg = await withTimeout(
+          navigator.serviceWorker.ready,
+          10000,
+          "The app's background worker didn't start. Reload the page and try again.",
+        );
+        let sub = await reg.pushManager.getSubscription();
+        // A subscription made with old VAPID keys can't receive pushes signed with the new ones.
+        if (sub && !sameKey(sub.options.applicationServerKey, key)) {
+          await removePushSubscription(sub.endpoint).catch(() => {});
+          await sub.unsubscribe();
+          sub = null;
+        }
+        if (!sub) {
+          sub = await withTimeout(
+            reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }),
+            20000,
+            "The browser's push service didn't answer. In Brave, fully quit and reopen the browser after turning on \"Use Google services for push messaging\", then try again.",
+          );
+        }
         const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
         const res = await savePushSubscription(json);
         if (!res.ok) {
@@ -65,7 +106,7 @@ export default function PushControls({ vapidPublicKey }: { vapidPublicKey: strin
         setState("on");
         setMsg({ ok: true, text: "Notifications are on for this phone." });
       } catch (e) {
-        setMsg({ ok: false, text: e instanceof Error ? e.message : "Could not turn on notifications." });
+        setMsg({ ok: false, text: friendlyPushError(e) });
       }
     });
   }
