@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, MessageSquareText, Moon, PawPrint, SkipForward, Sun, X } from "lucide-react";
@@ -16,12 +16,17 @@ type Props = {
 };
 
 export default function DoseList({ doses, showPet, amLabel, pmLabel }: Props) {
-  const [items, setItems] = useState<Dose[]>(doses);
+  // Optimistic copy of the server's doses. A tap shows instantly; once every pending save has
+  // finished, React switches back to the fresh server data (or the old value if a save failed).
+  // Unlike copying props into state, this never flickers when several doses are tapped quickly.
+  const [items, applyOptimistic] = useOptimistic(
+    doses,
+    (cur: Dose[], u: { key: string; status: DoseStatus | null; remark: string }) =>
+      cur.map((d) => (d.key === u.key ? { ...d, status: u.status, remark: u.remark } : d)),
+  );
   const [editing, setEditing] = useState<Dose | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
-
-  useEffect(() => setItems(doses), [doses]);
 
   const handled = items.filter((d) => d.status).length;
   const pct = items.length ? Math.round((handled / items.length) * 100) : 0;
@@ -35,15 +40,11 @@ export default function DoseList({ doses, showPet, amLabel, pmLabel }: Props) {
   );
 
   function apply(dose: Dose, status: DoseStatus | null, remark: string) {
-    const previous = dose;
-    setItems((cur) => cur.map((d) => (d.key === dose.key ? { ...d, status, remark } : d)));
     setError(null);
     startTransition(async () => {
+      applyOptimistic({ key: dose.key, status, remark });
       const res = await setDose(dose.petMedicationId, dose.date, dose.slot, status, remark);
-      if (!res.ok) {
-        setItems((cur) => cur.map((d) => (d.key === previous.key ? previous : d)));
-        setError(res.error);
-      }
+      if (!res.ok) setError(res.error);
     });
   }
 

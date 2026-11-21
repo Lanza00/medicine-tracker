@@ -134,6 +134,25 @@ export async function getDosesForDate(date: string, petId?: string): Promise<Dos
   return buildDoses(meds, logs, date);
 }
 
+/** Keep only one pet's medications (when a pet is picked). */
+export function forPet(meds: PetMedicationFull[], petId?: string): PetMedicationFull[] {
+  return petId ? meds.filter((m) => m.pet_id === petId) : meds;
+}
+
+/** Group already-fetched medications and logs into days, newest first. */
+export function buildRange(
+  meds: PetMedicationFull[],
+  logs: DoseLog[],
+  from: string,
+  to: string,
+): { date: string; doses: Dose[] }[] {
+  const days: { date: string; doses: Dose[] }[] = [];
+  for (let d = to; d >= from; d = addDays(d, -1)) {
+    days.push({ date: d, doses: buildDoses(meds, logs, d) });
+  }
+  return days;
+}
+
 /** Doses for each date in [from, to], newest first. */
 export async function getDosesForRange(
   from: string,
@@ -141,9 +160,5 @@ export async function getDosesForRange(
   petId?: string,
 ): Promise<{ date: string; doses: Dose[] }[]> {
   const [meds, logs] = await Promise.all([getMedications(petId), getLogs(from, to)]);
-  const days: { date: string; doses: Dose[] }[] = [];
-  for (let d = to; d >= from; d = addDays(d, -1)) {
-    days.push({ date: d, doses: buildDoses(meds, logs, d) });
-  }
-  return days;
+  return buildRange(meds, logs, from, to);
 }

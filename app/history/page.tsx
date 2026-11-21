@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Check, Circle, Download, SkipForward, XCircle } from "lucide-react";
 import PetAvatar from "@/components/PetAvatar";
 import SetupNotice from "@/components/SetupNotice";
-import { getDosesForRange, getPets } from "@/lib/data";
+import { buildRange, forPet, getLogs, getMedications, getPets } from "@/lib/data";
 import { addDays, formatLong, nowParts } from "@/lib/dates";
 import { hasSupabaseEnv } from "@/lib/supabase";
 
@@ -27,9 +27,10 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
 
   let pets, history;
   try {
-    pets = await getPets();
-    const petId = pets.find((p) => p.id === sp.pet)?.id;
-    history = await getDosesForRange(addDays(today, -(days - 1)), today, petId);
+    const from = addDays(today, -(days - 1));
+    const [p, meds, logs] = await Promise.all([getPets(), getMedications(), getLogs(from, today)]);
+    pets = p;
+    history = buildRange(forPet(meds, pets.find((x) => x.id === sp.pet)?.id), logs, from, today);
   } catch (e) {
     return <SetupNotice message={e instanceof Error ? e.message : String(e)} />;
   }

@@ -18,9 +18,9 @@ export default async function PetPage({ params }: { params: Promise<{ id: string
 
   let pet, meds, medicines;
   try {
-    pet = await getPet(id);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
+    [pet, meds, medicines] = await Promise.all([getPet(id), getMedications(id), getMedicines()]);
     if (!pet) notFound();
-    [meds, medicines] = await Promise.all([getMedications(id), getMedicines()]);
   } catch (e) {
     if (e && typeof e === "object" && "digest" in e) throw e; // let notFound() through
     return <SetupNotice message={e instanceof Error ? e.message : String(e)} />;
