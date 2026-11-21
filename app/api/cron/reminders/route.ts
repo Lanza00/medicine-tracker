@@ -1,4 +1,5 @@
 import { db } from "@/lib/supabase";
+import { isDemo } from "@/lib/demoMode";
 import { getDosesForDate, getSettings } from "@/lib/data";
 import { hmToMinutes, nowParts } from "@/lib/dates";
 import { sendPushToAll } from "@/lib/push";
@@ -33,6 +34,7 @@ function summarize(doses: Dose[]): string {
  * Sends a push if a slot's time has passed and doses are still not ticked.
  */
 export async function GET(req: Request) {
+  if (isDemo()) return Response.json({ skipped: "demo mode" }, { status: 404 });
   if (!authorized(req)) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const settings = await getSettings();

@@ -2,9 +2,11 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import RegisterSW from "@/components/RegisterSW";
+import DemoBanner from "@/components/DemoBanner";
+import { isDemo } from "@/lib/demoMode";
 
 export const metadata: Metadata = {
-  title: "Medicine Tracker",
+  title: isDemo() ? "Medicine Tracker (demo)" : "Medicine Tracker",
   description: "Track daily medicine for your pets.",
   appleWebApp: { capable: true, title: "Medicine Tracker", statusBarStyle: "default" },
   icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
@@ -29,10 +31,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans">
         <div className="relative mx-auto min-h-dvh max-w-md bg-sky shadow-2xl">
+          <DemoBanner />
           <main className="px-4 pb-28 pt-6">{children}</main>
           <BottomNav />
         </div>
-        <RegisterSW />
+        {isDemo() ? null : <RegisterSW />}
       </body>
     </html>
   );

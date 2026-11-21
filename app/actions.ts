@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/supabase";
 import { nowParts, isDateKey, addDays } from "@/lib/dates";
 import { sendPushToAll } from "@/lib/push";
+import { DEMO_DISABLED, isDemo } from "@/lib/demoMode";
+import * as demo from "@/lib/demo";
 import type { DoseStatus, Slot } from "@/lib/types";
 
 type Result = { ok: true } | { ok: false; error: string };
@@ -30,6 +32,11 @@ export async function setDose(
 ): Promise<Result> {
   try {
     if (!isDateKey(date) || (slot !== "AM" && slot !== "PM")) return { ok: false, error: "Invalid dose" };
+    if (isDemo()) {
+      await demo.demoSetDose(petMedicationId, date, slot, status, remark);
+      refresh();
+      return { ok: true };
+    }
     if (status === null) {
       const { error } = await db()
         .from("dose_logs")
@@ -67,6 +74,11 @@ export async function addPet(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const emoji = String(formData.get("emoji") ?? "🐱") || "🐱";
   if (!name) redirect("/pets");
+  if (isDemo()) {
+    const id = await demo.demoAddPet(name, emoji);
+    refresh();
+    redirect(`/pets/${id}`);
+  }
   const { data, error } = await db()
     .from("pets")
     .insert({ name: name.slice(0, 40), emoji })
@@ -78,6 +90,11 @@ export async function addPet(formData: FormData) {
 }
 
 export async function archivePet(petId: string) {
+  if (isDemo()) {
+    await demo.demoArchivePet(petId);
+    refresh();
+    redirect("/pets");
+  }
   const { error } = await db().from("pets").update({ archived: true }).eq("id", petId);
   if (error) throw error;
   refresh();
@@ -104,6 +121,12 @@ export async function addMedication(input: AddMedicationInput): Promise<Result> 
     if (!isDateKey(input.startDate)) return { ok: false, error: "Start date is invalid." };
     if (input.endDate && (!isDateKey(input.endDate) || input.endDate < input.startDate))
       return { ok: false, error: "End date must be on or after the start date." };
+
+    if (isDemo()) {
+      await demo.demoAddMedication({ ...input, slots });
+      refresh();
+      return { ok: true };
+    }
 
     let medicineId = input.medicineId;
     if (!medicineId) {
@@ -147,6 +170,11 @@ export async function addMedication(input: AddMedicationInput): Promise<Result> 
 /** Stop a medication from today onward (history is kept). */
 export async function stopMedication(id: string): Promise<Result> {
   try {
+    if (isDemo()) {
+      await demo.demoStopMedication(id);
+      refresh();
+      return { ok: true };
+    }
     const today = nowParts().date;
     const { data } = await db().from("pet_medications").select("start_date").eq("id", id).maybeSingle();
     // If it never started yet, stopping means the day before it would have begun.
@@ -164,6 +192,11 @@ export async function stopMedication(id: string): Promise<Result> {
 /** Delete a medication and all its logged history. */
 export async function deleteMedication(id: string): Promise<Result> {
   try {
+    if (isDemo()) {
+      await demo.demoDeleteMedication(id);
+      refresh();
+      return { ok: true };
+    }
     const { error } = await db().from("pet_medications").delete().eq("id", id);
     if (error) throw error;
     refresh();
@@ -179,6 +212,11 @@ export async function saveSettings(amTime: string, pmTime: string, enabled: bool
   try {
     const ok = /^\d{2}:\d{2}$/;
     if (!ok.test(amTime) || !ok.test(pmTime)) return { ok: false, error: "Invalid time." };
+    if (isDemo()) {
+      await demo.demoSaveSettings({ am_time: amTime, pm_time: pmTime, reminders_enabled: enabled });
+      refresh();
+      return { ok: true };
+    }
     const { error } = await db()
       .from("settings")
       .upsert({ id: 1, am_time: amTime, pm_time: pmTime, reminders_enabled: enabled });
@@ -194,6 +232,7 @@ export async function savePushSubscription(sub: {
   endpoint: string;
   keys: { p256dh: string; auth: string };
 }): Promise<Result> {
+  if (isDemo()) return { ok: false, error: DEMO_DISABLED };
   try {
     const { error } = await db()
       .from("push_subscriptions")
@@ -209,6 +248,7 @@ export async function savePushSubscription(sub: {
 }
 
 export async function removePushSubscription(endpoint: string): Promise<Result> {
+  if (isDemo()) return { ok: true };
   try {
     const { error } = await db().from("push_subscriptions").delete().eq("endpoint", endpoint);
     if (error) throw error;
@@ -219,6 +259,7 @@ export async function removePushSubscription(endpoint: string): Promise<Result> 
 }
 
 export async function sendTestPush(): Promise<Result & { sent?: number }> {
+  if (isDemo()) return { ok: false, error: DEMO_DISABLED };
   try {
     const r = await sendPushToAll({
       title: "💊 Test reminder",
@@ -232,4 +273,14 @@ export async function sendTestPush(): Promise<Result & { sent?: number }> {
   } catch (e) {
     return fail(e);
   }
+}
+
+/* ---------- Demo ---------- */
+
+/** Demo only: throw away this visitor's changes and go back to the sample data. */
+export async function resetDemoData(): Promise<void> {
+  if (!isDemo()) return;
+  await demo.resetDemo();
+  refresh();
+  redirect("/");
 }

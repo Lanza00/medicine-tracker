@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { db } from "./supabase";
+import { isDemo } from "./demoMode";
 
 let configured = false;
 
@@ -19,7 +20,7 @@ export type PushPayload = { title: string; body: string; tag?: string; url?: str
 export async function sendPushToAll(
   payload: PushPayload,
 ): Promise<{ configured: boolean; sent: number; failed: number }> {
-  if (!configure()) return { configured: false, sent: 0, failed: 0 };
+  if (isDemo() || !configure()) return { configured: false, sent: 0, failed: 0 };
 
   const { data } = await db().from("push_subscriptions").select("endpoint,p256dh,auth");
   const subs = (data ?? []) as { endpoint: string; p256dh: string; auth: string }[];

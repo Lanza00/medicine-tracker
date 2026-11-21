@@ -81,6 +81,18 @@ The endpoint returns JSON showing what it did, handy for debugging.
 3. Open the installed app → **Settings → Turn on notifications → Allow**.
 4. Tap **Send test** to confirm.
 
+## 6. Public demo (for a portfolio)
+
+Set `NEXT_PUBLIC_DEMO_MODE=1` on a **separate** Vercel project to get a safe demo:
+
+- Every visitor starts with the same made-up pets (Milo, Coco, Oreo) and a few weeks of history.
+- Their changes are saved in their own browser (cookies), so visitors never see each other's edits.
+  A **Reset demo** button in the top bar brings back the sample data.
+- It never connects to Supabase (the database client refuses to start in demo mode) and never sends
+  notifications. Do **not** add the Supabase, VAPID or cron variables to the demo project.
+
+Run it locally with `NEXT_PUBLIC_DEMO_MODE=1 npm run dev`.
+
 ## Notes
 
 - Today's doses are generated from each pet's active medicine; only ticks/skips are stored.

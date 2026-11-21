@@ -1,4 +1,6 @@
 import { db } from "./supabase";
+import { isDemo } from "./demoMode";
+import * as demo from "./demo";
 import { addDays } from "./dates";
 import type {
   Dose,
@@ -13,6 +15,7 @@ import type {
 const SLOT_ORDER: Record<Slot, number> = { AM: 0, PM: 1 };
 
 export async function getPets(includeArchived = false): Promise<Pet[]> {
+  if (isDemo()) return demo.demoGetPets(includeArchived);
   let q = db().from("pets").select("id,name,kind,emoji,archived").order("created_at");
   if (!includeArchived) q = q.eq("archived", false);
   const { data, error } = await q;
@@ -21,6 +24,7 @@ export async function getPets(includeArchived = false): Promise<Pet[]> {
 }
 
 export async function getPet(id: string): Promise<Pet | null> {
+  if (isDemo()) return demo.demoGetPet(id);
   const { data, error } = await db()
     .from("pets")
     .select("id,name,kind,emoji,archived")
@@ -31,12 +35,14 @@ export async function getPet(id: string): Promise<Pet | null> {
 }
 
 export async function getMedicines(): Promise<Medicine[]> {
+  if (isDemo()) return demo.demoGetMedicines();
   const { data, error } = await db().from("medicines").select("id,name,description").order("name");
   if (error) throw error;
   return (data ?? []) as Medicine[];
 }
 
 export async function getSettings(): Promise<Settings> {
+  if (isDemo()) return demo.demoGetSettings();
   const { data } = await db()
     .from("settings")
     .select("am_time,pm_time,reminders_enabled")
@@ -59,6 +65,7 @@ type MedRow = {
 
 /** All medications (optionally for one pet) for pets that are not archived. */
 export async function getMedications(petId?: string): Promise<PetMedicationFull[]> {
+  if (isDemo()) return demo.demoGetMedications(petId);
   let q = db()
     .from("pet_medications")
     .select(
@@ -83,6 +90,7 @@ export async function getMedications(petId?: string): Promise<PetMedicationFull[
 }
 
 export async function getLogs(from: string, to: string): Promise<DoseLog[]> {
+  if (isDemo()) return demo.demoGetLogs(from, to);
   const { data, error } = await db()
     .from("dose_logs")
     .select("pet_medication_id,date,slot,status,remark")
