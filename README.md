@@ -27,6 +27,8 @@ npm run dev                    # http://localhost:3000
 
 1. Create a project at supabase.com (free tier is fine).
 2. **SQL Editor → New query**, paste `supabase/schema.sql`, **Run**.
+   Already set up before pet photos were added? Also run `supabase/migrations/20261122_pet_photos.sql`
+   (adds the `photo_url` column and the public `pet-photos` storage bucket).
 3. **Project Settings → API**: copy the Project URL and the **service_role** key into `.env.local`:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`  ← server only, never expose it

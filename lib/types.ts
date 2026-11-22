@@ -6,6 +6,8 @@ export type Pet = {
   name: string;
   kind: string;
   emoji: string;
+  /** Public URL of an uploaded photo; null/absent = show the emoji. */
+  photo_url?: string | null;
   archived: boolean;
 };
 
@@ -26,7 +28,7 @@ export type PetMedication = {
 };
 
 export type PetMedicationFull = PetMedication & {
-  pet: Pick<Pet, "id" | "name" | "emoji" | "archived">;
+  pet: Pick<Pet, "id" | "name" | "emoji" | "photo_url" | "archived">;
   medicine: Medicine;
 };
 
@@ -45,6 +47,7 @@ export type Dose = {
   petId: string;
   petName: string;
   petEmoji: string;
+  petPhoto: string | null;
   medicineName: string;
   description: string;
   amount: string;

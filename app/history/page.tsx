@@ -84,7 +84,7 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
                 petId === p.id ? "bg-ink text-white" : "bg-white text-ink"
               }`}
             >
-              <PetAvatar id={p.id} emoji={p.emoji} size={26} />
+              <PetAvatar id={p.id} emoji={p.emoji} photo={p.photo_url} size={26} />
               {p.name}
             </Link>
           ))}
@@ -112,8 +112,11 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
                       <li key={d.key} className="flex items-center gap-3 px-4 py-2.5">
                         <span className="w-7 text-xs font-extrabold text-muted">{d.slot}</span>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-bold">
-                            {d.petEmoji} {d.petName} · {d.medicineName}
+                          <p className="flex items-center gap-1.5 text-sm font-bold">
+                            <PetAvatar id={d.petId} emoji={d.petEmoji} photo={d.petPhoto} size={20} />
+                            <span className="truncate">
+                              {d.petName} · {d.medicineName}
+                            </span>
                           </p>
                           {d.remark ? (
                             <p className="truncate text-xs italic text-muted">“{d.remark}”</p>

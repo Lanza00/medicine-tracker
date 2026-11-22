@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Pill, StopCircle, Trash2 } from "lucide-react";
+import { Pencil, Pill, StopCircle, Trash2 } from "lucide-react";
 import { deleteMedication, stopMedication } from "@/app/actions";
+import AddMedicineForm from "@/components/AddMedicineForm";
 import { formatFull } from "@/lib/dates";
 import type { PetMedicationFull } from "@/lib/types";
 
@@ -16,6 +17,7 @@ export default function MedicationItem({
   finished?: boolean;
 }) {
   const [confirm, setConfirm] = useState<"stop" | "delete" | null>(null);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -57,7 +59,11 @@ export default function MedicationItem({
 
       {error ? <p className="mt-3 text-sm font-semibold text-coral">{error}</p> : null}
 
-      {confirm ? (
+      {editing ? (
+        <div className="mt-3 border-t border-line pt-1">
+          <AddMedicineForm petId={med.pet_id} medicines={[]} today={today} edit={med} onDone={() => setEditing(false)} />
+        </div>
+      ) : confirm ? (
         <div className="mt-3 rounded-xl bg-sky p-3">
           <p className="text-sm font-bold">
             {confirm === "stop"
@@ -79,6 +85,9 @@ export default function MedicationItem({
         </div>
       ) : (
         <div className="mt-3 flex gap-2">
+          <button className="btn-soft flex-1 !py-2" onClick={() => setEditing(true)}>
+            <Pencil size={16} /> Edit
+          </button>
           {!finished && (!med.end_date || med.end_date >= today) ? (
             <button className="btn-soft flex-1 !py-2" onClick={() => setConfirm("stop")}>
               <StopCircle size={16} /> Stop

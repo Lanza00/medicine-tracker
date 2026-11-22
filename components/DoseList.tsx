@@ -150,7 +150,7 @@ function DoseRow({
         skipped ? "bg-peach-soft" : ""
       }`}
     >
-      {showPet ? <PetAvatar id={dose.petId} emoji={dose.petEmoji} size={40} /> : null}
+      {showPet ? <PetAvatar id={dose.petId} emoji={dose.petEmoji} photo={dose.petPhoto} size={40} /> : null}
       <div className="min-w-0 flex-1">
         <p className={`truncate font-extrabold ${taken ? "text-muted line-through decoration-2" : ""}`}>
           {dose.medicineName}

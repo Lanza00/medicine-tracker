@@ -189,7 +189,7 @@ export async function demoGetMedications(petId?: string): Promise<PetMedicationF
       slots: m.slots,
       start_date: m.start_date,
       end_date: m.end_date,
-      pet: { id: pet.id, name: pet.name, emoji: pet.emoji, archived: pet.archived },
+      pet: { id: pet.id, name: pet.name, emoji: pet.emoji, photo_url: null, archived: pet.archived },
       medicine,
     });
   }
@@ -242,6 +242,15 @@ export async function demoAddPet(name: string, emoji: string): Promise<string> {
   return id;
 }
 
+export async function demoUpdatePet(petId: string, name: string, emoji: string): Promise<void> {
+  const s = await read();
+  const pet = s.pets.find((p) => p.id === petId);
+  if (!pet) throw new Error("Pet not found");
+  pet.name = name.slice(0, 20);
+  pet.emoji = emoji.slice(0, 8);
+  await write(s);
+}
+
 export async function demoArchivePet(petId: string): Promise<void> {
   const s = await read();
   const pet = s.pets.find((p) => p.id === petId);
@@ -287,6 +296,20 @@ export async function demoAddMedication(input: {
     start_date: input.startDate,
     end_date: input.endDate || null,
   });
+  await write(s);
+}
+
+export async function demoUpdateMedication(
+  id: string,
+  input: { amount: string; slots: Slot[]; startDate: string; endDate: string | null },
+): Promise<void> {
+  const s = await read();
+  const m = s.meds.find((x) => x.id === id);
+  if (!m) throw new Error("Medicine not found");
+  m.amount = input.amount.trim().slice(0, 15) || "1";
+  m.slots = input.slots;
+  m.start_date = input.startDate;
+  m.end_date = input.endDate || null;
   await write(s);
 }
 

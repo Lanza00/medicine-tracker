@@ -35,7 +35,7 @@ export default async function PetsPage() {
           return (
             <li key={p.id}>
               <Link href={`/pets/${p.id}`} className="card flex items-center gap-3 p-3.5">
-                <PetAvatar id={p.id} emoji={p.emoji} size={48} />
+                <PetAvatar id={p.id} emoji={p.emoji} photo={p.photo_url} size={48} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-lg font-extrabold">{p.name}</p>
                   <p className="text-xs font-semibold text-muted">

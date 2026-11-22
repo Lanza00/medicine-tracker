@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
-import PetAvatar from "@/components/PetAvatar";
+import PetHeader from "@/components/PetHeader";
 import SetupNotice from "@/components/SetupNotice";
 import AddMedicineForm from "@/components/AddMedicineForm";
 import MedicationItem from "@/components/MedicationItem";
@@ -36,10 +36,7 @@ export default async function PetPage({ params }: { params: Promise<{ id: string
         <ChevronLeft size={18} /> Pets
       </Link>
 
-      <header className="mt-3 flex items-center gap-3">
-        <PetAvatar id={pet.id} emoji={pet.emoji} size={56} />
-        <h1 className="min-w-0 flex-1 truncate text-3xl font-extrabold">{pet.name}</h1>
-      </header>
+      <PetHeader pet={pet} />
 
       <h2 className="mt-6 px-1 text-sm font-extrabold">Current medicine</h2>
       {current.length === 0 ? (

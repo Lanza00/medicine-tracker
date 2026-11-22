@@ -97,3 +97,10 @@ grant all on all tables in schema public to service_role;
 grant all on all sequences in schema public to service_role;
 alter default privileges in schema public grant all on tables to service_role;
 alter default privileges in schema public grant all on sequences to service_role;
+
+-- Pet photos (also in supabase/migrations/20261122_pet_photos.sql for existing projects).
+-- Uploaded by the server with the service role key; the bucket is public for reading.
+alter table public.pets add column if not exists photo_url text;
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('pet-photos', 'pet-photos', true, 1048576, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do nothing;

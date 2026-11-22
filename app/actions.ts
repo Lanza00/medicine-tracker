@@ -70,23 +70,144 @@ export async function setDose(
 
 /* ---------- Pets ---------- */
 
+const PHOTO_BUCKET = "pet-photos";
+const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+const PHOTO_MAX_BYTES = 1024 * 1024; // the app shrinks photos to ~400px first, so this is plenty
+
+/** Pull a valid photo out of a form, or null if none was sent. Throws on a bad file. */
+function photoFrom(formData: FormData): File | null {
+  const f = formData.get("photo");
+  if (!f || typeof f === "string" || f.size === 0) return null;
+  if (!PHOTO_TYPES[f.type]) throw new Error("The photo must be a JPG, PNG or WebP image.");
+  if (f.size > PHOTO_MAX_BYTES) throw new Error("That photo is too big (max 1 MB).");
+  return f;
+}
+
+/** Upload a pet photo to Supabase Storage and return its public URL. */
+async function uploadPhoto(petId: string, file: File): Promise<string> {
+  // A new random name each time, so a changed photo never shows the old cached one.
+  const path = `${petId}/${crypto.randomUUID()}.${PHOTO_TYPES[file.type]}`;
+  const { error } = await db()
+    .storage.from(PHOTO_BUCKET)
+    .upload(path, file, { contentType: file.type, cacheControl: "31536000", upsert: false });
+  if (error) {
+    if (/bucket not found/i.test(error.message)) {
+      throw new Error("Photo storage isn't set up yet. Run supabase/migrations/20261122_pet_photos.sql in Supabase.");
+    }
+    throw error;
+  }
+  return db().storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/** Delete an uploaded photo by its public URL. Best effort: a leftover file is harmless. */
+async function deletePhoto(url: string | null | undefined) {
+  if (!url) return;
+  const marker = `/object/public/${PHOTO_BUCKET}/`;
+  const i = url.indexOf(marker);
+  if (i < 0) return;
+  await db().storage.from(PHOTO_BUCKET).remove([decodeURIComponent(url.slice(i + marker.length))]);
+}
+
 export async function addPet(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const emoji = String(formData.get("emoji") ?? "🐱") || "🐱";
   if (!name) redirect("/pets");
   if (isDemo()) {
-    const id = await demo.demoAddPet(name, emoji);
+    const id = await demo.demoAddPet(name, emoji); // photos aren't kept in the demo
     refresh();
     redirect(`/pets/${id}`);
   }
+  const photo = photoFrom(formData);
   const { data, error } = await db()
     .from("pets")
     .insert({ name: name.slice(0, 40), emoji })
     .select("id")
     .single();
   if (error) throw error;
+  if (photo) {
+    // The pet is saved even if the photo fails; it can be added again from the pet's page.
+    try {
+      const url = await uploadPhoto(data.id, photo);
+      await db().from("pets").update({ photo_url: url }).eq("id", data.id);
+    } catch (e) {
+      console.error("Pet photo upload failed", e);
+    }
+  }
   refresh();
   redirect(`/pets/${data.id}`);
+}
+
+/**
+ * Edit a pet: name, icon, and optionally a new "photo" file or "removePhoto"="1".
+ * Returns a result instead of redirecting, so the form can show errors in place.
+ */
+export async function updatePet(petId: string, formData: FormData): Promise<Result> {
+  try {
+    const name = String(formData.get("name") ?? "").trim();
+    const emoji = String(formData.get("emoji") ?? "").trim() || "🐱";
+    if (!name) return { ok: false, error: "Enter a name." };
+    if (isDemo()) {
+      await demo.demoUpdatePet(petId, name, emoji); // photos aren't kept in the demo
+      refresh();
+      return { ok: true };
+    }
+    const photo = photoFrom(formData);
+    const removePhoto = formData.get("removePhoto") === "1";
+    const { data: pet, error: readErr } = await db().from("pets").select("photo_url").eq("id", petId).maybeSingle();
+    if (readErr) throw readErr;
+    if (!pet) return { ok: false, error: "Pet not found." };
+    const oldUrl = (pet as { photo_url: string | null }).photo_url;
+
+    const changes: { name: string; emoji: string; photo_url?: string | null } = { name: name.slice(0, 40), emoji };
+    if (photo) changes.photo_url = await uploadPhoto(petId, photo);
+    else if (removePhoto) changes.photo_url = null;
+
+    const { error } = await db().from("pets").update(changes).eq("id", petId);
+    if (error) throw error;
+    if ("photo_url" in changes && oldUrl && oldUrl !== changes.photo_url) {
+      await deletePhoto(oldUrl).catch(() => {});
+    }
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Set or replace a pet's photo. The form must hold a "photo" file. */
+export async function setPetPhoto(petId: string, formData: FormData): Promise<Result> {
+  if (isDemo()) return { ok: false, error: DEMO_DISABLED };
+  try {
+    const photo = photoFrom(formData);
+    if (!photo) return { ok: false, error: "Pick a photo first." };
+    const { data: pet, error: readErr } = await db().from("pets").select("photo_url").eq("id", petId).maybeSingle();
+    if (readErr) throw readErr;
+    if (!pet) return { ok: false, error: "Pet not found." };
+    const url = await uploadPhoto(petId, photo);
+    const { error } = await db().from("pets").update({ photo_url: url }).eq("id", petId);
+    if (error) throw error;
+    await deletePhoto((pet as { photo_url: string | null }).photo_url).catch(() => {});
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Remove a pet's photo and go back to showing its icon. */
+export async function removePetPhoto(petId: string): Promise<Result> {
+  if (isDemo()) return { ok: false, error: DEMO_DISABLED };
+  try {
+    const { data: pet, error: readErr } = await db().from("pets").select("photo_url").eq("id", petId).maybeSingle();
+    if (readErr) throw readErr;
+    const { error } = await db().from("pets").update({ photo_url: null }).eq("id", petId);
+    if (error) throw error;
+    await deletePhoto((pet as { photo_url: string | null } | null)?.photo_url).catch(() => {});
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
 }
 
 export async function archivePet(petId: string) {
@@ -159,6 +280,45 @@ export async function addMedication(input: AddMedicationInput): Promise<Result> 
       start_date: input.startDate,
       end_date: input.endDate || null,
     });
+    if (error) throw error;
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export type UpdateMedicationInput = {
+  amount: string;
+  slots: Slot[];
+  startDate: string;
+  endDate: string | null;
+};
+
+/** Edit a pet's medicine: amount, AM/PM, start date and end date. Logged doses are kept. */
+export async function updateMedication(id: string, input: UpdateMedicationInput): Promise<Result> {
+  try {
+    const slots = input.slots.filter((s) => s === "AM" || s === "PM");
+    if (slots.length === 0) return { ok: false, error: "Pick at least one time (AM or PM)." };
+    if (!isDateKey(input.startDate)) return { ok: false, error: "Start date is invalid." };
+    if (input.endDate && (!isDateKey(input.endDate) || input.endDate < input.startDate))
+      return { ok: false, error: "End date must be on or after the start date." };
+
+    if (isDemo()) {
+      await demo.demoUpdateMedication(id, { ...input, slots });
+      refresh();
+      return { ok: true };
+    }
+
+    const { error } = await db()
+      .from("pet_medications")
+      .update({
+        amount: input.amount.trim().slice(0, 40) || "1",
+        slots,
+        start_date: input.startDate,
+        end_date: input.endDate || null,
+      })
+      .eq("id", id);
     if (error) throw error;
     refresh();
     return { ok: true };

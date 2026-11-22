@@ -89,7 +89,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                 petId === p.id ? "bg-brand text-white shadow-card" : "bg-white text-ink"
               }`}
             >
-              <PetAvatar id={p.id} emoji={p.emoji} size={28} />
+              <PetAvatar id={p.id} emoji={p.emoji} photo={p.photo_url} size={28} />
               {p.name}
             </Link>
           ))}

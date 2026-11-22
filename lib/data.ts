@@ -16,7 +16,7 @@ const SLOT_ORDER: Record<Slot, number> = { AM: 0, PM: 1 };
 
 export async function getPets(includeArchived = false): Promise<Pet[]> {
   if (isDemo()) return demo.demoGetPets(includeArchived);
-  let q = db().from("pets").select("id,name,kind,emoji,archived").order("created_at");
+  let q = db().from("pets").select("id,name,kind,emoji,photo_url,archived").order("created_at");
   if (!includeArchived) q = q.eq("archived", false);
   const { data, error } = await q;
   if (error) throw error;
@@ -27,7 +27,7 @@ export async function getPet(id: string): Promise<Pet | null> {
   if (isDemo()) return demo.demoGetPet(id);
   const { data, error } = await db()
     .from("pets")
-    .select("id,name,kind,emoji,archived")
+    .select("id,name,kind,emoji,photo_url,archived")
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
@@ -59,7 +59,7 @@ type MedRow = {
   slots: Slot[];
   start_date: string;
   end_date: string | null;
-  pets: { id: string; name: string; emoji: string; archived: boolean };
+  pets: { id: string; name: string; emoji: string; photo_url: string | null; archived: boolean };
   medicines: Medicine;
 };
 
@@ -69,7 +69,7 @@ export async function getMedications(petId?: string): Promise<PetMedicationFull[
   let q = db()
     .from("pet_medications")
     .select(
-      "id,pet_id,medicine_id,amount,slots,start_date,end_date,pets!inner(id,name,emoji,archived),medicines!inner(id,name,description)",
+      "id,pet_id,medicine_id,amount,slots,start_date,end_date,pets!inner(id,name,emoji,photo_url,archived),medicines!inner(id,name,description)",
     )
     .eq("pets.archived", false)
     .order("created_at");
@@ -118,6 +118,7 @@ export function buildDoses(meds: PetMedicationFull[], logs: DoseLog[], date: str
         petId: m.pet.id,
         petName: m.pet.name,
         petEmoji: m.pet.emoji,
+        petPhoto: m.pet.photo_url ?? null,
         medicineName: m.medicine.name,
         description: m.medicine.description,
         amount: m.amount,
